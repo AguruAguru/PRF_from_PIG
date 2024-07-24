@@ -59,7 +59,7 @@ NW::NW(bit (*hard_function)(const std::vector<bit>&), unsigned log_security_para
     this->log_security_param = log_security_param;
     if (designs == nullptr){
         this->designs = new DesignsPolynomials(
-            2 * log_security_param, // what params??
+            log_security_param, // what params??
             (int)std::pow(n, 1/8)
         );
     }
@@ -81,7 +81,7 @@ std::vector<bit> NW::restrict_y(unsigned i, const std::vector<bit>& y) {
 }
 
 
-
+/*
 int main() {
     DesignsPolynomials design(32, 1 << 10);
     std::vector<bit> y = {};
@@ -94,4 +94,4 @@ int main() {
         std::cout << (elem.val & 1) << std::endl;
     }
     return 0;
-}
+}*/

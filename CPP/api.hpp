@@ -1,3 +1,8 @@
+#pragma once
+
+#ifndef API_H
+#define API_H
+
 #define NO_GFLUT
 #include "schifra_galois_field.hpp"
 #undef NO_GFLUT
@@ -10,6 +15,12 @@
 
 #define BIT_PREFIX_MASK(x) ( ( 1 << (x)) - 1)
 
+typedef enum running_mode : int {
+    RAW_UNIVERSAL = 0,
+    NW_UNIVERSAL = 1,
+    NW_RS = 2,
+    NW_LOCAL_ENC = 3,
+} running_mode;
 
 typedef struct Bit {
     char val : 1;
@@ -18,16 +29,18 @@ typedef struct Bit {
     Bit() : val(0) {};
 } bit;
 
+typedef bit (*evaluation_function)(const std::vector<bit>&);
+
 const int NUM_TAPES = 4;
 const int N = (1 << 8), T = 512;
 const int log_RS_q = 8; // q: RS field size - TODO: calculate optimal
 constexpr int RS_q = 1 << log_RS_q;
-constexpr long long l = 32; // size of the design sets, bit length of each NW input
+constexpr long long l = 16; // size of the design sets, bit length of each NW input
 constexpr long long max_NW_input = -1; // (1 << l) - 1;
 
-int TM[N][1 << NUM_TAPES];
 const int PAD_LENGTH = 32, INP_LENGTH = 15;
-int random_pad[NUM_TAPES][PAD_LENGTH];
+extern int TM[N][1 << NUM_TAPES];
+extern int random_pad[NUM_TAPES][PAD_LENGTH];
 
 /*
 class Automata:
@@ -100,12 +113,13 @@ class DesignsPolynomials {
 
     
 class NW {
+    public:
     bit (*hard_function)(const std::vector<bit>&);
     unsigned log_security_param;
     unsigned n;
     DesignsPolynomials *designs;
 
-    NW(bit (*hard_function)(const std::vector<bit>&), unsigned log_security_param, unsigned n, DesignsPolynomials *designs=nullptr);
+    NW(evaluation_function hard_function, unsigned log_security_param, unsigned n, DesignsPolynomials *designs=nullptr);
 
     ~NW();
 
@@ -113,6 +127,12 @@ class NW {
     
     std::vector<bit> restrict_y(unsigned i, const std::vector<bit>& y);
 };
+
+
+bit locally_encode_explicit_calc(long long inp);
+std::vector<bit> get_TM_tt(int table_length = 65536, bool printProgress = false);
+std::vector<bit> apply_hadamard(std::vector<bit> tt);
+std::vector<bit> apply_RS(std::vector<bit> msg);
 
 
 /* generate a random TM with tapes*/
@@ -123,4 +143,33 @@ void gen_random_pad(int random_pad[][PAD_LENGTH]);
 /* emulate the TM on the given input and return its output bit (last bit of final state)*/
 bit emulate_TM(const int TM[][1 << NUM_TAPES], int64_t inp);
 
+inline schifra::galois::field* getGFOverF2(unsigned field_descriptor) {
+    #define OPEN_CASE(index, inp, X) case index: X(inp) break;
+    #define ALL_POSS_DESC(X) \
+    switch(field_descriptor - 2){ \
+        OPEN_CASE(0, 0##0, X) \
+        OPEN_CASE(1, 0##1, X) \
+        OPEN_CASE(2, 0##2, X) \
+        OPEN_CASE(3, 0##3, X) \
+        OPEN_CASE(4, 0##4, X) \
+        OPEN_CASE(5, 0##5, X) \
+        OPEN_CASE(6, 0##6, X) \
+        OPEN_CASE(7, 0##7, X) \
+        OPEN_CASE(8, 0##8, X) \
+        OPEN_CASE(9, 0##9, X) \
+        OPEN_CASE(10, 10, X) \
+        OPEN_CASE(11, 11, X) \
+        OPEN_CASE(12, 12, X) \
+        OPEN_CASE(14, 14, X) \
+    }
 
+    #define GEN_FINITE_FIELD(desc) field = new schifra::galois::field(field_descriptor, schifra::galois::primitive_polynomial_size##desc, schifra::galois::primitive_polynomial##desc);
+
+    schifra::galois::field *field;
+
+    ALL_POSS_DESC(GEN_FINITE_FIELD)
+
+    return field;
+}
+
+#endif
