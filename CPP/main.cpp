@@ -1,8 +1,9 @@
 #include "api.hpp"
 
-#include <fstream> 
-#include <iostream> 
+#include <fstream>
+#include <iostream>
 #include <cassert>
+
 #define assertm(exp, msg) assert(((void)msg, exp))
 
 int64_t bitsToInt(const std::vector<bit>& inp) {
@@ -21,7 +22,7 @@ bit eval_TM(const std::vector<bit>& inp){
 
 bit eval_TM_RS(const std::vector<bit>& inp) {
     static auto ecc_tt = apply_hadamard(apply_RS(get_TM_tt(1 << l)));
-    assertm(l < 25, "Used l value is too high to use with Reed Solomon");
+    assertm(l < 20, "Used l value is too high to use with Reed Solomon");
     return ecc_tt[bitsToInt(inp)];
 }
 
@@ -44,7 +45,7 @@ std::vector<bit> runNW(running_mode mode, unsigned outLen) {
     std::vector<bit> y = {};
     for (int i = 0; i < NW_gen->designs->d; ++i)
         y.push_back(rand() & 1);
-
+    printf("NW randomness: %d\n", NW_gen->designs->d);
     std::vector<bit> outputs = {};
 
     for (int i = 1; i <= outLen; ++i) {
@@ -59,13 +60,18 @@ std::vector<bit> runNW(running_mode mode, unsigned outLen) {
 }
 
 int main(int argc, char *argv[]) {
-    std::ofstream out("./outputs/output.txt", std::ios::out); 
+    std::ofstream out;
+    if (argc > 3)
+        out = std::ofstream(argv[3], std::ios::out);
+    else
+        out = std::ofstream("./outputs/output.txt", std::ios::out);
 
     random_TM(TM);
     gen_random_pad(random_pad);
 
     running_mode mode = (running_mode)atoi(argv[1]);
     const unsigned outLen = atoi(argv[2]);
+    
 
     std::vector<bit> outputs;
 
@@ -82,7 +88,7 @@ int main(int argc, char *argv[]) {
         out << (b.val & 1);
     }
 
-    std::cout << "Balance: " << ones/outLen;
+    std::cout << "Balance: " << 100*ones/outLen << "%" << std::endl;
     out.close();    
 
     return 0;

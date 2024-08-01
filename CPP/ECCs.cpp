@@ -2,7 +2,7 @@
 
 std::vector<bit> apply_RS(std::vector<bit> msg) {
     constexpr std::size_t n = (RS_q - 1);
-    constexpr std::size_t d = 32;
+    constexpr std::size_t d = RS_d; // TODO: select dynamically
     constexpr std::size_t k = n - d + 1;
 
     /* Finite Field Parameters */
@@ -33,21 +33,21 @@ std::vector<bit> apply_RS(std::vector<bit> msg) {
         std::cout << "Error - Failed to create sequential root generator!" << std::endl;
     }
 
-    /* Instantiate Encoder and Decoder (Codec) */
+    /* Instantiate Encoder (Codec) */
     typedef schifra::reed_solomon::encoder<code_length,fec_length,data_length> encoder_t;
 
     const encoder_t encoder(*field, generator_polynomial);
         
-        /* Instantiate RS Block For Codec */
-        schifra::reed_solomon::block<code_length,fec_length> block;
-        
-        for (int i = 0; i < k; ++i) {
-            int curr = 0;
-            for (int j = 0; j < log_RS_q; ++j) {
-                curr += ((msg[i * log_RS_q + j].val & 1) << j);
-            }
-            block[i] = static_cast<int>(curr & BIT_PREFIX_MASK(field_descriptor));
+    /* Instantiate RS Block For Codec */
+    schifra::reed_solomon::block<code_length,fec_length> block;
+    
+    for (int i = 0; i < k; ++i) {
+        int curr = 0;
+        for (int j = 0; j < log_RS_q; ++j) {
+            curr += ((msg[i * log_RS_q + j].val & 1) << j);
         }
+        block[i] = static_cast<int>(curr & BIT_PREFIX_MASK(field_descriptor));
+    }
         
     /* Transform message into Reed-Solomon encoded codeword */
     if (!encoder.encode(block))
@@ -76,13 +76,10 @@ std::vector<bit> apply_hadamard(std::vector<bit> tt) {
         for (int v = 0; v < RS_q; ++v) {
             int inn_prod = 0;
             
-            // std::cout << v << " * tt[] = ";
             for (int index = 0; index < log_RS_q; ++index) {
-                // std::cout <<(( v >> index) & 1 ) << "*" << (int)tt[(i + 1) * log_q - index - 1] << " ";
                 inn_prod += ( (( v >> index) & 1 ) * (tt[(i + 1) * log_RS_q - index - 1].val & 1) );
             }
 
-            // std::cout << " = " << (inn_prod & 1) << std::endl;
             hadamard.push_back(bit(inn_prod & 1)); 
         }
 
@@ -95,11 +92,11 @@ std::vector<bit> apply_hadamard(std::vector<bit> tt) {
     Treat 'inp' as an array of w k-bit long input strings, and takes the inner product of the result of the TM of those
     with the next w bits of 'inp' (r)
 */
-bit locally_encode_explicit_calc(long long inp) {
-    static constexpr int w = 4;
+bit locally_encode_explicit_calc(uint64_t inp) {
+    static constexpr int w = 6;
     static constexpr int k = (l/w) - 1; // w*k + w = design's l
 
-    int r = (inp >> (w*k)) & BIT_PREFIX_MASK(w);
+    uint64_t r = (inp >> (w*k)) & BIT_PREFIX_MASK(w);
     int inner_prod = 0;
 
     for (int i = 0; i < w; ++i) {

@@ -21,28 +21,25 @@ std::vector<bit> DesignsPolynomials::explicit_calculation(unsigned i, const std:
     if (this->I.find(i) == I.end()){
         std::size_t field_descriptor = this->log_q;
 
-        const schifra::galois::field GF_q
-                                    (
-                                        field_descriptor,
-                                        schifra::galois::primitive_polynomial_size06,
-                                        schifra::galois::primitive_polynomial06 // TODO: should this be changed according to log_q?
-                                    );
+        const schifra::galois::field *GF_q = getGFOverF2(field_descriptor);
         
         unsigned deg = (int)(((int)log2(i)+1) / this->log_q) + ((((int)log2(i)+1) % this->log_q) != 0) - 1;
-        std::vector<schifra::galois::field_element> coeffs(0, schifra::galois::field_element(GF_q, 0));
+        std::vector<schifra::galois::field_element> coeffs(0, schifra::galois::field_element(*GF_q, 0));
 
         for (int j = deg; j >= 0; --j)
-            coeffs.push_back(schifra::galois::field_element(GF_q, ((i >> (this->log_q * j)) % (this->q))));  // i in base q, determines the coeffs for the polynomial
+            coeffs.push_back(schifra::galois::field_element(*GF_q, ((i >> (this->log_q * j)) % (this->q))));  // i in base q, determines the coeffs for the polynomial
 
-        schifra::galois::field_polynomial poly = schifra::galois::field_polynomial(GF_q, deg, &coeffs[0]); // should be safe to do
+        schifra::galois::field_polynomial poly = schifra::galois::field_polynomial(*GF_q, deg, &coeffs[0]); // should be safe to do
 
         std::vector<int> I_i = {}; // the i'th design in the designs collection
         for (int k = 0; k < this->l; ++k)
-            I_i.push_back(k*this->q + static_cast<int>(poly(schifra::galois::field_element(GF_q, k)).index()));
+            I_i.push_back(k*this->q + static_cast<int>(poly(schifra::galois::field_element(*GF_q, k)).index()));
 
         std::sort(I_i.begin(), I_i.end());
 
         this->I[i] = I_i;
+
+        delete GF_q;
     }
     
 

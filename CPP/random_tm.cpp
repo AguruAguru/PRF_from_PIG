@@ -11,7 +11,7 @@ using namespace std;
 
 int TM[N][1 << NUM_TAPES];
 int random_pad[NUM_TAPES][PAD_LENGTH];
-
+int tapes[NUM_TAPES][T + 10];
 
 void random_TM(int TM[][1 << NUM_TAPES]) {
     std::random_device rd;
@@ -28,117 +28,6 @@ void random_TM(int TM[][1 << NUM_TAPES]) {
             TM[node][idx] = (next_node << (NUM_TAPES << 1)) | (vals << NUM_TAPES) | dirs;
         }
 }
-/*
-std::unordered_map<std::pair<int, int>, std::tuple<int, int, int>, std::hash<std::pair<int, int>>> random_TM(int n) {
-    std::unordered_map<std::pair<int, int>, std::tuple<int, int, int>, std::hash<std::pair<int, int>>> TM;
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<int> n_dist(0, n - 1);
-    std::uniform_int_distribution<int> tape_dist(0, (1 << num_tapes) - 1);
-
-    for (int node = 0; node < n; ++node) {
-        for (int idx = 0; idx < (1 << num_tapes); ++idx) {
-            TM[std::make_pair(node, idx)] = std::make_tuple(n_dist(gen), tape_dist(gen), tape_dist(gen));
-        }
-    }
-    return TM;
-}
-*/
-
-/*
-int read_from_tapes(const std::vector<std::vector<int>>& tapes, const std::vector<int>& heads) {
-    int head_content = 0;
-    for (int i = 0; i < num_tapes; ++i) {
-        const std::vector<int>& tape = tapes[i];
-        int head = heads[i];
-        head_content |= tape[head] << i;
-    }
-    return head_content;
-}
-
-std::tuple<std::vector<std::vector<int>>, std::vector<int>> update_tapes(
-    const std::vector<std::vector<int>>& tapes,
-    const std::vector<int>& heads,
-    int vals,
-    int directions
-) {
-    std::vector<std::vector<int>> updated_tapes = tapes;
-    std::vector<int> updated_heads = heads;
-
-    for (int i = 0; i < num_tapes; ++i) {
-        std::vector<int>& tape = updated_tapes[i];
-        int head = updated_heads[i];
-        tape[head] = (vals >> i) & 1;
-        int dir = (directions >> i) & 1;
-        if (dir == 0) {
-            dir = -1;
-        }
-        head += dir;
-        if (head < 0) {
-            head = 0;
-        }
-        if (head >= tape.size()) {
-            tape.push_back(0);
-        }
-        updated_tapes[i] = tape;
-        updated_heads[i] = head;
-    }
-
-    return std::make_tuple(updated_tapes, updated_heads);
-}
-
-int emulate_TM(
-    const std::unordered_map<std::pair<int, int>, std::tuple<int, int, int>, std::hash<std::pair<int, int>>>& TM,
-    std::vector<std::vector<int>>& tapes,
-    int t,
-    bool flag,
-    int inp
-) {
-    std::vector<int> heads(num_tapes, 0);
-    int state = 0;
-
-    std::vector<int> max_heads(num_tapes, 0);
-    std::unordered_set<int> visited_states;
-    visited_states.insert(state);
-
-    for (int _ = 0; _ < t; ++_) {
-        int head_content = read_from_tapes(tapes, heads);
-
-        if (flag) {
-            for (int i = 0; i < num_tapes; ++i) {
-                max_heads[i] = std::max(max_heads[i], heads[i]);
-            }
-            visited_states.insert(state);
-        }
-
-        auto result = TM.find(std::make_pair(state, head_content));
-        if (result == TM.end()) {
-            // Handle missing transition.
-            // You can add your own logic here.
-        } else {
-            std::tie(state, int vals, int directions) = result->second;
-            std::tie(tapes, heads) = update_tapes(tapes, heads, vals, directions);
-        }
-    }
-
-    if (flag) {
-        if (max_heads[1] < 10) {
-            std::cout << max_heads[0] << " " << max_heads[1] << " " << inp << std::endl;
-        }
-    }
-    return (state & 1);
-}
-
-std::vector<int> load_tape(int inp) {
-    std::vector<int> tape;
-    while (inp != 0) {
-        tape.push_back(inp & 1);
-        inp >>= 1;
-    }
-    tape.push_back(0);
-    return tape;
-}
-*/
 
 void gen_random_pad(int random_pad[][PAD_LENGTH])
 {
@@ -150,14 +39,13 @@ void gen_random_pad(int random_pad[][PAD_LENGTH])
             random_pad[i][j] = bin_dist(gen);
 }
 
-int tapes[NUM_TAPES][T + 10];
-
 
 void load_tape(int tape[], uint64_t inp)
 {
     for (int i = 0; i < INP_LENGTH; ++i, inp >>= 1)
         tape[i] = inp & 1;
 }
+
 int read_from_tapes(int heads[])
 {
     int head_content = 0;
@@ -165,6 +53,7 @@ int read_from_tapes(int heads[])
         head_content |= tapes[i][heads[i]] << i;
     return head_content;
 }
+
 int edit_tape(int tape[], int head, int val, int dir)
 {
     tape[head] = val;
@@ -178,6 +67,8 @@ int edit_tape(int tape[], int head, int val, int dir)
 
 bit emulate_TM(const int TM[][1 << NUM_TAPES], int64_t inp) 
 {
+    // static std::string tt = "";
+    // return bit((int)(tt[inp]) - '0');
     memset(tapes, 0, sizeof(tapes));
     for (int i = 0; i < NUM_TAPES; ++i)
     {

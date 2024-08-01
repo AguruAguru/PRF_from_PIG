@@ -1,7 +1,5 @@
-#pragma once
-
-#ifndef API_H
-#define API_H
+#ifndef API_HPP
+#define API_HPP
 
 #define NO_GFLUT
 #include "schifra_galois_field.hpp"
@@ -16,10 +14,10 @@
 #define BIT_PREFIX_MASK(x) ( ( 1 << (x)) - 1)
 
 typedef enum running_mode : int {
-    RAW_UNIVERSAL = 0,
-    NW_UNIVERSAL = 1,
-    NW_RS = 2,
-    NW_LOCAL_ENC = 3,
+    RAW_UNIVERSAL = 0, // Output the truth table of the universal function (simply running the TM on consecutive inputs); Explicitly computable
+    NW_UNIVERSAL = 1, // Run the NW generator using the universal function, this is effectively the original construction from [LP24]; Explicitly computable
+    NW_RS = 2, // Run the NW generator using the truth table obtained by applying Reed-Solomon and then Hadamard on the truth table of the universal function; Not explicitly computable
+    NW_LOCAL_ENC = 3, //Run the NW generator using the truth table obtained by applying local encoding (see documentation for 'locally_encode_explicit_calc'); Explicitly computable
 } running_mode;
 
 typedef struct Bit {
@@ -29,120 +27,155 @@ typedef struct Bit {
     Bit() : val(0) {};
 } bit;
 
-typedef bit (*evaluation_function)(const std::vector<bit>&);
+/* -------------------- configuration -------------------- */
 
-const int NUM_TAPES = 4;
-const int N = (1 << 8), T = 512;
+const int NUM_TAPES = 3; // number of tapes used by TM
+const int N = (1 << 5); // number of states
+const int T = 100; // for how many steps to emulate the TM
+constexpr long long l = 23*6; // size of the design sets, bit length of each NW input
+const int PAD_LENGTH = 0; // How much random padding is used per tape
+const int INP_LENGTH = 15; // Input length taken for each tape
+extern int TM[N][1 << NUM_TAPES]; // the TM itself
+extern int random_pad[NUM_TAPES][PAD_LENGTH]; // the random pading
+
 const int log_RS_q = 8; // q: RS field size - TODO: calculate optimal
 constexpr int RS_q = 1 << log_RS_q;
-constexpr long long l = 16; // size of the design sets, bit length of each NW input
-constexpr long long max_NW_input = -1; // (1 << l) - 1;
-
-const int PAD_LENGTH = 32, INP_LENGTH = 15;
-extern int TM[N][1 << NUM_TAPES];
-extern int random_pad[NUM_TAPES][PAD_LENGTH];
+constexpr int RS_d = 32; // RS distance
+constexpr int w = 6; // local encoding vector length
 
 /*
-class Automata:
-        self.d // regularity
-        self.n // vertices count
-        self.vertices 
-        self.edges 
 
-    def __init__(self, d, enc):
-        init
-    
-    def run(self, input_str):
-        Runs the DFA on the input string and returns the resulting bit
+Notes about the parameters :
+- Random bits used for TM: N*NUM_TAPES*log(N) + PAD_LENGTH*NUM_TAPES
+- Random bits used for NW: ~l^2, l times smallest power of two ge to l.
 
-class DesignsPolynomials:
-    A class to generate combinatorial designs, using the polynomials algorithm
+- If RS is used, l should be rather small, as the entire TM tt is generated.
+- If local encoding is used, and one wants 1M output bits for example, l should be the vector size of the local encoding times roughly log(1M). One should also consider INP_LENGTH accordingly. TODO: need more bits but why
 
-    l: int
-    q: int
-    d: int # universe
-    m: int
-    log_q: int
-    I: typing.Dict[int,typing.List[int]]
-
-    def __init__(self, l, m):
-        // init
-
-        self.l = l
-        self.m = m
-        self.log_q = (l-1).bit_length() 
-        self.q = 1<<self.log_q
-        self.d = l*self.q
-        self.I = {}
-
-    def explicit_calculation(self, i, y):
-        index in the design and the string to operate on, returns y restricted to the bits in the i'th design set
-
-class NW:
-    def __init__(self, hard_function, security_param, n, designs=None):
-        init
-    
-    def explicit_calculation(self, i, y):
-        get the i'th bit of the generator output, using y
-    
-    def restrict_y(self, i, y):
-        get the input for the i'th call to the hard function, using y
-
-def designs_for_NW(security_param, n)
-    generate designs for the NW generator
-
-def h(pis, y, i, security_param, n)
-    with XOR amplification
+- T should allow viewing the inputs in their entirety
+- RS_q is also the parameter for the local computation of the folloiwng hadamard code, and thus the final TT will be of size (RS_q - 1) * (RS_q / log_RS_q), and so output size is to be considered respectively.
 
 */
 
-class DesignsPolynomials {
-    public:
-    unsigned l;
-    unsigned q;
-    unsigned d;
-    unsigned m;
-    unsigned log_q;
-    std::unordered_map<int, std::vector<int>> I;
+/* -------------------- TM Emulation -------------------- */
 
+/* generate a random TM with tapes */
+void random_TM(int TM[][1 << NUM_TAPES]);
+
+/*
+    Pad each of the 'NUM_TAPES' arrays with 'PAD_LENGTH' random bits.
+*/
+void gen_random_pad(int random_pad[][PAD_LENGTH]);
+
+/* 
+Emulates the provided TM on the given input and return its output bit (last bit of final state)
+
+* distribute 'inp' accross the tapes, taking 'INP_LENGTH' bits for each tape.
+* append the random padding to the inputs on the tapes
+* run the TM for 'T' steps
+* output the last bit of the final state
+
+*/
+bit emulate_TM(const int TM[][1 << NUM_TAPES], int64_t inp);
+
+
+/* -------------------- NW & Designs -------------------- */
+
+typedef bit (*evaluation_function)(const std::vector<bit>&);
+
+class DesignsPolynomials {
+    /* class to compute and maintain combinatorial designs, computed using polynomials over a finite field */
+
+    public:
+    unsigned l; // the size of each set in the design
+    unsigned q; // smallest power of two ge to l
+    unsigned d; // universe size, equals l*q
+    unsigned m; // how many design sets are to be considered
+    unsigned log_q;
+    std::unordered_map<int, std::vector<int>> I; // the designs
+
+    /* init */
     DesignsPolynomials(unsigned l, unsigned m);
 
-    std::vector<bit> explicit_calculation(unsigned i, const std::vector<bit>& y);
+    /* Explicitly calculate the restriction of 'y' to the indices in the i'th set in the design
 
+    * If the i'th set is not yet calculated:
+        * Init GF(q)=GF(2^log_q)
+        * Calculate the i'th polynomial p over GF(q), canonically sorted lexicographically by the coefficients, taking the digits of i in base q as the coefficients
+        * Construct the design set as all of the pairs (k, p(k)) for k < l; specifically takes all k*q + p(k), using interchangeably elements in GF(q) as also integers in Z/qZ.
+        * sort the set
+    * return the restriction of y to the indices in the aforementioned set.
+
+    */
+    std::vector<bit> explicit_calculation(unsigned i, const std::vector<bit>& y);
 };
 
-    
 class NW {
-    public:
-    bit (*hard_function)(const std::vector<bit>&);
-    unsigned log_security_param;
-    unsigned n;
-    DesignsPolynomials *designs;
+    /* apply the NW generator, given a hard function and designs*/
 
+    public:
+    bit (*hard_function)(const std::vector<bit>&); // the hard function to be used by the generator
+    unsigned log_security_param; // the log of the security param
+    unsigned n; // n
+    DesignsPolynomials *designs; // the designs used. One can use any combinatorial designs
+
+    /* init */
     NW(evaluation_function hard_function, unsigned log_security_param, unsigned n, DesignsPolynomials *designs=nullptr);
 
     ~NW();
 
+    /*
+        Explicitly compute the hard function on the restriction of y according to the i'th design set.
+
+        * Call designs->explicit_calculation(i, y) to get the restriction of y
+        * Return the result of the hard function on the restriction
+    */
     bit explicit_calculation(unsigned i, const std::vector<bit>& y);
     
+    /*
+        Simply return the restriction of y without applying the hard function
+    */
     std::vector<bit> restrict_y(unsigned i, const std::vector<bit>& y);
 };
 
+/* -------------------- ECCs -------------------- */
 
-bit locally_encode_explicit_calc(long long inp);
+/*
+    Given the input and after having initialized the TM, calculate the local encoding of the universal function on this input
+
+    * Deconstuct the first 'l' bits of the input to be 'w' (internal param) vectors of length 'k', and another vector of length 'w' (so l=w*k + w)
+    * Compute the output bit of the TM on each of the resulting k-bit strings 
+    * return the inner product of the vector of the output bits, with the final reserved w-bit vector.
+    
+    * Formally computes: <(TM(inp[0:k-1]), ..., TM(inp[w*(k-1):w*k])), (inp[w*k], ..., inp[w*k + w - 1])>
+*/
+bit locally_encode_explicit_calc(uint64_t inp);
+
+/*
+    Return the first 'table_length' bits of the truth table of the TM
+*/
 std::vector<bit> get_TM_tt(int table_length = 65536, bool printProgress = false);
+
+/*
+    Apply the Hadamard code on the provided tt, on every loq_RS_q bits.
+
+    * For every log_RS_q bit string in the tt, compute the inner product with all log_RS_q bit vectors
+    * Concatenate the inner products to the results from the previous log_RS_q strings
+    * Return the computed table
+*/
 std::vector<bit> apply_hadamard(std::vector<bit> tt);
+
+/*
+    Apply the Reed Solomon code on the given message, with parameters
+    Field size: RS_q
+    n: RS_1 - 1
+    d: ? // TODO
+    k: n - d + 1
+*/
 std::vector<bit> apply_RS(std::vector<bit> msg);
 
 
-/* generate a random TM with tapes*/
-void random_TM(int TM[][1 << NUM_TAPES]);
-
-void gen_random_pad(int random_pad[][PAD_LENGTH]);
-
-/* emulate the TM on the given input and return its output bit (last bit of final state)*/
-bit emulate_TM(const int TM[][1 << NUM_TAPES], int64_t inp);
-
+/* returns the field GF(2^field_descriptor) */
 inline schifra::galois::field* getGFOverF2(unsigned field_descriptor) {
     #define OPEN_CASE(index, inp, X) case index: X(inp) break;
     #define ALL_POSS_DESC(X) \
