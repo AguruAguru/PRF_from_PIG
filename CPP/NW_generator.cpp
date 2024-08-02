@@ -6,11 +6,10 @@
 
 #include "api.hpp"
 
-DesignsPolynomials::DesignsPolynomials(unsigned l, unsigned m) {
-    this->l = l;
-    this->m = m;
-    this->log_q = (int)log2(l-1) + 1; // smallest power of two that is ge to l
-    this->q = 1 << this->log_q;
+DesignsPolynomials::DesignsPolynomials(unsigned design_l) {
+    this->l = design_l;
+    this->log_q = (int)log2(l-1) + 1; 
+    this->q = 1 << this->log_q; // smallest power of two that is ge to l
     this->d = this->l*this->q;
     this->I = {};
 }
@@ -51,13 +50,12 @@ std::vector<bit> DesignsPolynomials::explicit_calculation(unsigned i, const std:
 }
 
 
-NW::NW(bit (*hard_function)(const std::vector<bit>&), unsigned log_security_param, unsigned n, DesignsPolynomials *designs) {
+NW::NW(bit (*hard_function)(const std::vector<bit>&), unsigned design_l, DesignsPolynomials *designs) {
     this->hard_function = hard_function;
     this->log_security_param = log_security_param;
     if (designs == nullptr){
         this->designs = new DesignsPolynomials(
-            log_security_param, // what params??
-            (int)std::pow(n, 1/8)
+            design_l
         );
     }
     else

@@ -3,14 +3,7 @@
 #include <fstream>
 #include <iostream>
 
-
-int64_t bitsToInt(const std::vector<bit>& inp) {
-    int64_t int_res = 0;
-    for (int i = 0; i < inp.size(); ++i) {
-        int_res = (int_res << 1) + (inp[i].val & 1);
-    }
-    return int_res;
-}
+/* ----------- the hard function cadidates - the callbacks provided to the NW gen ----------- */
 
 bit eval_TM(const std::vector<bit>& inp){
     int64_t int_inp = bitsToInt(inp);
@@ -19,13 +12,13 @@ bit eval_TM(const std::vector<bit>& inp){
 }
 
 bit eval_TM_RS(const std::vector<bit>& inp) {
-    static auto ecc_tt = apply_hadamard(apply_RS(get_TM_tt(1 << l)));
+    static auto ecc_tt = apply_hadamard(apply_RS(get_TM_tt((RS_q - RS_d + 1)*log_RS_q)));
     assertm(l < 20, "Used l value is too high to use with Reed Solomon");
     return ecc_tt[bitsToInt(inp)];
 }
 
 bit evalLocalEnc(const std::vector<bit>& inp) {
-    return locally_encode_explicit_calc(bitsToInt(inp));
+    return locally_encode_explicit_calc(inp);
 }
 
 evaluation_function get_hard_func(running_mode mode) {
@@ -37,14 +30,22 @@ evaluation_function get_hard_func(running_mode mode) {
     return nullptr;
 }
 
+
+/* 
+    Runs the NW generator and returns a truth table of length outLen
+
+    * init the generator with the corresponding hard function
+    * init 'y', the random string (taken from the seed) to which the NW treat as the input
+    * concatenate the explicit computation results from all inputs through outLen
+    * return result
+*/
 std::vector<bit> runNW(running_mode mode, unsigned outLen, bool printProgress = true) {
-    NW *NW_gen = new NW(get_hard_func(mode), l, 1 << 10);
+    NW *NW_gen = new NW(get_hard_func(mode), l);
 
     std::vector<bit> y = {};
     for (int i = 0; i < NW_gen->designs->d; ++i)
         y.push_back(randBit());
-    // for (auto b : y)
-    //     std::cout << (b.val & 1);
+
     if (printProgress)
         std::cout << "NW randomness: " << NW_gen->designs->d << std::endl;
 
@@ -61,9 +62,15 @@ std::vector<bit> runNW(running_mode mode, unsigned outLen, bool printProgress = 
     return outputs;   
 }
 
+/*
+    Runs as a stream cipher (encoding "./plaintext.txt" currently), with seed length 1344 (should match config)
+
+    * Sequencially apply the RS version with an expansion factor of 2
+    * Each time tak the first half and xor it with the plaintext (and save the results of course), and take the second half as the seed to the next iteration
+    * When the plaintext has been processed in its entirety, return the concatenation of all the xored values
+*/
 std::vector<bit> streamCipher() {
-    static const int seedLen = 1344;
-    std::ifstream pt = std::ifstream("./alice.txt", std::ios::in);
+    std::ifstream pt = std::ifstream("./plaintext.txt", std::ios::in);
 
     std::vector<bit> result = {};
 
@@ -79,8 +86,9 @@ std::vector<bit> streamCipher() {
         auto PRG_tt = runNW(running_mode::NW_RS, seedLen*2, false);
 
         for (int i = 0; i < currBits.size(); ++i)
-            result.push_back((currBits[i].val ^ PRG_tt[i].val) & 1);
-        setSeed(std::vector<bit>(PRG_tt.begin() + seedLen, PRG_tt.end()));
+            result.push_back((currBits[i].val ^ PRG_tt[i].val) & 1); // first half used to xor
+
+        setSeed(std::vector<bit>(PRG_tt.begin() + seedLen, PRG_tt.end())); // second half used as future seed
 
         random_TM(TM);
         gen_random_pad(random_pad);
@@ -89,9 +97,10 @@ std::vector<bit> streamCipher() {
     return result;
 }
 
+/*
+    Cyclicly apply the RS vesion on itself (with exapnsion factor of 1), and return the resulting string after 100000 applications
+*/
 std::vector<bit> cyclicApplication() {
-    static const int seedLen = 1344;
-
     std::vector<bit> result = {};
 
     char curr;
@@ -104,10 +113,10 @@ std::vector<bit> cyclicApplication() {
 
         auto PRG_tt = runNW(running_mode::NW_RS, seedLen, false);
 
-        setSeed(std::vector<bit>(PRG_tt.begin(), PRG_tt.end()));
+        setSeed(std::vector<bit>(PRG_tt.begin(), PRG_tt.end())); // output becomes next seed
 
         random_TM(TM);
-        // gen_random_pad(random_pad);
+        gen_random_pad(random_pad);
     }
 
     return runNW(running_mode::NW_RS, seedLen, false);;
@@ -118,21 +127,18 @@ int main(int argc, char *argv[]) {
     if (argc > 3)
         out = std::ofstream(argv[3], std::ios::out);
     else if (argc >= 2)
-        out = std::ofstream("./outputs/output.txt", std::ios::out);
+        out = std::ofstream("./output.txt", std::ios::out);
     else {
-        std::cout << "USAGE <program> <running mode> <output length> [output file]" << std::endl;
+        std::cout << "USAGE <program> <running mode> [output length] [output file]\n"
+                    << "0: Universal function truth table\n"
+                    << "1: NW generator, with universal function oracle\n"
+                    << "2: NW generator, with Reed Solomon ECC\n"
+                    << "3: NW generator, with local encoding ECC\n"
+                    << "4: Stream cipher, encrypts contents of ./plaintext.txt, using NW with Reed Solomon\n"
+                    << "5: Cyclically apply PRG 10000 times, using NW with Reed Solomon\n\n" 
+                    << "Outputs to ./output.txt unless stated otherwise; configuration of other paramteres requires recompiling" << std::endl;
         return 1;
     }
-
-    /* 
-    ------ for decrypting ------
-    std::string str("110111111101110001010110001010111101100100100000001010111010000011100100010111010010001001001110001000011001110111110111000110000101100011110101000010100111010100100011011000111111100111101101000111101110100001111110001011111010000110111001111110101011100001100011010100101001100000010000010001100100111010100100100010110110101100001110101000010110100000000000101111010110100101100111011110111111010011100001100010001011001101101111010100100000000001100001010101010101110010010010100101110101111110111100110111011001100110101101101110101001100000011010010111101101000110111001001010101101111110001001010100110111111000100011011100100001000010101110101110101011101001010101110000011101101111010111010110000110001100111100010010001010001110101110011000111111011110001111101111010101111111100101111001000010011011011111011000011001001001111110011001110111100010101011101110111101100101011010001000000100001000010110110100010010110100000000011101000100001010100111110110111111101000110000110110011001100111000001000110000101100011100100011010110010110100010011011011100110100110011010101010101111101110010110010011111100000101000000111001001010101101011101010110001110011000100001010111010000000010011100010001000010111100111101010100101011100110110110010100111011110110000011011000001101011101111011111011110001100110001010011000100100010110101000");
-    std::vector<bit> seed = {};
-    for (char c : str)
-        seed.push_back((c - '0') & 1);
-
-    setSeed(seed); 
-    */
 
     random_TM(TM);
     gen_random_pad(random_pad);
@@ -156,10 +162,17 @@ int main(int argc, char *argv[]) {
             break;
 
         case running_mode::ENCRYPT_STREAM:
+            if (argc >= 3)
+                out = std::ofstream(argv[2], std::ios::out);
             outputs = streamCipher();
             outLen = outputs.size();
             break;
-        default: outputs = cyclicApplication(); outLen = outputs.size();
+        case running_mode::CYCLICALLY_APPLY: 
+            if (argc >= 3)
+                out = std::ofstream(argv[2], std::ios::out);
+            outputs = cyclicApplication(); 
+            outLen = outputs.size();
+            break;
     }
 
     float ones = 0;

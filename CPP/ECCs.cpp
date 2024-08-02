@@ -1,6 +1,8 @@
 #include "api.hpp"
 
 std::vector<bit> apply_RS(std::vector<bit> msg) {
+    assertm(l < 20, "Used l value is too high to use with Reed Solomon");
+
     constexpr std::size_t n = (RS_q - 1);
     constexpr std::size_t d = RS_d; // TODO: select dynamically
     constexpr std::size_t k = n - d + 1;
@@ -92,15 +94,17 @@ std::vector<bit> apply_hadamard(std::vector<bit> tt) {
     Treat 'inp' as an array of w k-bit long input strings, and takes the inner product of the result of the TM of those
     with the next w bits of 'inp' (r)
 */
-bit locally_encode_explicit_calc(uint64_t inp) {
+bit locally_encode_explicit_calc(const std::vector<bit>& inp) {
     const int k = LOCAL_ENC_k;
     const int w = l/(k+1); // w*k + w = design's l
 
-    uint64_t r = (inp >> (w*k)) & BIT_PREFIX_MASK(w);
+    uint64_t r = bitsToInt(std::vector<bit>(inp.begin() + w*k, inp.begin() + w*k + w));
     int inner_prod = 0;
 
     for (int i = 0; i < w; ++i) {
-        inner_prod += ( ( r >> i ) & 1) ? (emulate_TM(TM, (inp >> (i * k)) & BIT_PREFIX_MASK(k)).val & 1) : 0;
+        inner_prod += ( ( r >> i ) & 1) ? (emulate_TM(TM, 
+            bitsToInt(std::vector<bit>(inp.begin() + i*k, inp.begin() + i*k + k))
+            ).val & 1) : 0;
     }
 
     return bit(inner_prod & 1);
