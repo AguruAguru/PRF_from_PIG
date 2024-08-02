@@ -28,7 +28,7 @@ std::vector<bit> DesignsPolynomials::explicit_calculation(unsigned i, const std:
         for (int j = deg; j >= 0; --j)
             coeffs.push_back(schifra::galois::field_element(*GF_q, ((i >> (this->log_q * j)) % (this->q))));  // i in base q, determines the coeffs for the polynomial
 
-        schifra::galois::field_polynomial poly = schifra::galois::field_polynomial(*GF_q, deg, &coeffs[0]); // should be safe to do
+        schifra::galois::field_polynomial poly = schifra::galois::field_polynomial(*GF_q, deg, &coeffs[0]);
 
         std::vector<int> I_i = {}; // the i'th design in the designs collection
         for (int k = 0; k < this->l; ++k)

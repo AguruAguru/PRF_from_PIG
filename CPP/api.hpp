@@ -24,9 +24,9 @@ typedef enum running_mode : int {
     RAW_UNIVERSAL = 0, // Output the truth table of the universal function (simply running the TM on consecutive inputs); Explicitly computable
     NW_UNIVERSAL = 1, // Run the NW generator using the universal function, this is effectively the original construction from [LP24]; Explicitly computable
     NW_RS = 2, // Run the NW generator using the truth table obtained by applying Reed-Solomon and then Hadamard on the truth table of the universal function; Not explicitly computable
-    NW_LOCAL_ENC = 3, //Run the NW generator using the truth table obtained by applying local encoding (see documentation for 'locally_encode_explicit_calc'); Explicitly computable
-    ENCRYPT_STREAM = 4,
-    CYCLICALLY_APPLY = 5
+    NW_LOCAL_ENC = 3, // Run the NW generator using the truth table obtained by applying local encoding (see documentation for 'locally_encode_explicit_calc'); Explicitly computable
+    ENCRYPT_STREAM = 4, // Uses NW with RS as a twice expanding PRG, as a stream cipher
+    CYCLICALLY_APPLY = 5 // Uses NW with RS as a twice expanding PRG, cyclically on itself
 } running_mode;
 
 typedef struct Bit {
@@ -40,22 +40,6 @@ typedef struct Bit {
 
 /* -------------------- configuration -------------------- */
 
-/*
-const int NUM_TAPES = 2; // number of tapes used by TM
-const int N = (1 << 7); // number of states
-const int T = 150; // for how many steps to emulate the TM
-constexpr long long l = 21*3; // size of the design sets, bit length of each NW input
-const int PAD_LENGTH = 0; // How much random padding is used per tape
-const int INP_LENGTH = 10; // Input length taken for each tape
-extern int TM[N][1 << NUM_TAPES]; // the TM itself
-extern int random_pad[NUM_TAPES][PAD_LENGTH]; // the random pading
-
-const int log_RS_q = 7; // q: RS field size - TODO: calculate optimal
-constexpr int RS_q = 1 << log_RS_q;
-constexpr int RS_d = 32; // RS distance
-constexpr int LOCAL_ENC_k = 20; // input size for every TM emulation when using local encoding, k+1 should divide l
-*/
-
 constexpr int NUM_TAPES = 2; // number of tapes used by TM
 constexpr int log_N = 5; // log number of states
 constexpr int N = (1 << log_N); // number of states
@@ -66,20 +50,12 @@ const int INP_LENGTH = 15; // Input length taken for each tape
 extern int TM[N][1 << NUM_TAPES]; // the TM itself
 extern int random_pad[NUM_TAPES][PAD_LENGTH]; // the random pading
 
-const int log_RS_q = 7; // q: RS field size - TODO: calculate optimal
+const int log_RS_q = 7; // q: RS field size
 constexpr int RS_q = 1 << log_RS_q;
 constexpr int RS_d = 32; // RS distance
 constexpr int LOCAL_ENC_k = 2; // input size for every TM emulation when using local encoding, k+1 should divide l
 
 constexpr int seedLen = ( N*(1 << NUM_TAPES)*(log_N + 2*NUM_TAPES) + PAD_LENGTH*NUM_TAPES ) + ( l * ( 1 << ((int)log2(l-1) + 1)) ); // used for the stream cipher + cyclic length test; Formula in notes
-
-/*
-const int log_RS_q = 15; // q: RS field size - TODO: calculate optimal
-constexpr int RS_q = 1 << log_RS_q;
-constexpr int RS_d = RS_q - 1 - 128; // RS distance
-constexpr long long l = (RS_q - 1)*(RS_q/log_RS_q); // size of the design sets, bit length of each NW input
-constexpr int LOCAL_ENC_k = 2; // input size for every TM emulation when using local encoding, k+1 should divide l
-*/
 
 /*
 
@@ -90,7 +66,6 @@ Notes about the parameters :
 - INP_LENGTH should be set to the total inputh length divided by 'NUM_TAPES', e.g. if local encoding is used then it should be LOCAL_ENC_k/NUM_TAPES
 
 - If RS is used, l should be rather small, as the entire TM tt is generated.
-- If local encoding is used, and one wants 1M output bits for example, l should be the vector size of the local encoding times roughly log(1M). One should also consider INP_LENGTH accordingly. TODO: need more bits but why
 
 - T should allow viewing the inputs in their entirety
 - RS_q is also the parameter for the local computation of the folloiwng hadamard code, and thus the final TT will be of size (RS_q - 1) * (RS_q / log_RS_q), and so output size is to be considered respectively.
@@ -208,7 +183,7 @@ std::vector<bit> apply_hadamard(std::vector<bit> tt);
     Apply the Reed Solomon code on the given message, with parameters
     Field size: RS_q
     n: RS_1 - 1
-    d: ? // TODO
+    d: 32
     k: n - d + 1
 */
 std::vector<bit> apply_RS(std::vector<bit> msg);

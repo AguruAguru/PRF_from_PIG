@@ -4,13 +4,13 @@ std::vector<bit> apply_RS(std::vector<bit> msg) {
     assertm(l < 20, "Used l value is too high to use with Reed Solomon");
 
     constexpr std::size_t n = (RS_q - 1);
-    constexpr std::size_t d = RS_d; // TODO: select dynamically
+    constexpr std::size_t d = RS_d;
     constexpr std::size_t k = n - d + 1;
 
     /* Finite Field Parameters */
     constexpr std::size_t field_descriptor                = log_RS_q;
     constexpr std::size_t generator_polynomial_index      = 0;
-    constexpr std::size_t generator_polynomial_root_count = d; // n - k + 1; // n = q - 1, d = n - k + 1 
+    constexpr std::size_t generator_polynomial_root_count = d;
 
     /* Reed Solomon Code Parameters */
     constexpr std::size_t code_length = n;
