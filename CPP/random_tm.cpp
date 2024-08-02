@@ -1,42 +1,36 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
-#include <random>
 #include <bitset>
 #include <cstring>
 
 #include "api.hpp"
-
-using namespace std;
 
 int TM[N][1 << NUM_TAPES];
 int random_pad[NUM_TAPES][PAD_LENGTH];
 int tapes[NUM_TAPES][T + 10];
 
 void random_TM(int TM[][1 << NUM_TAPES]) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<int> state_dist(0, N - 1);
-    std::uniform_int_distribution<int> tape_dist(0, (1 << NUM_TAPES) - 1);
+    // std::random_device rd;
+    // std::mt19937 gen(rd());
+    // std::uniform_int_distribution<int> state_dist(0, N - 1);
+    // std::uniform_int_distribution<int> tape_dist(0, (1 << NUM_TAPES) - 1);
     
     for (int node = 0; node < N; ++node)
         for (int idx = 0; idx < (1 << NUM_TAPES); ++idx)
         {
-            int next_node = state_dist(gen), 
-                vals = tape_dist(gen),
-                dirs = tape_dist(gen);
+            int next_node = randIntMod(N), // state
+                vals = randIntMod(1 << NUM_TAPES), // tape
+                dirs = randIntMod(1 << NUM_TAPES); // tape
             TM[node][idx] = (next_node << (NUM_TAPES << 1)) | (vals << NUM_TAPES) | dirs;
         }
 }
 
 void gen_random_pad(int random_pad[][PAD_LENGTH])
 {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<int> bin_dist(0, 1);
     for (int i = 0; i < NUM_TAPES; ++i)
         for (int j = 0; j < PAD_LENGTH; ++j)
-            random_pad[i][j] = bin_dist(gen);
+            random_pad[i][j] = (randBit().val & 1);
 }
 
 

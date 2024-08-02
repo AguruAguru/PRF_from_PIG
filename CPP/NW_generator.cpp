@@ -33,7 +33,7 @@ std::vector<bit> DesignsPolynomials::explicit_calculation(unsigned i, const std:
 
         std::vector<int> I_i = {}; // the i'th design in the designs collection
         for (int k = 0; k < this->l; ++k)
-            I_i.push_back(k*this->q + static_cast<int>(poly(schifra::galois::field_element(*GF_q, k)).index()));
+            I_i.push_back(k*this->q + static_cast<int>(poly(schifra::galois::field_element(*GF_q, k)).poly()));
 
         std::sort(I_i.begin(), I_i.end());
 

@@ -11,6 +11,12 @@
 #include "schifra_reed_solomon_block.hpp"
 #include "schifra_error_processes.hpp"
 
+#include <random>
+#include <cassert>
+
+#define assertm(exp, msg) assert(((void)msg, exp))
+
+
 #define BIT_PREFIX_MASK(x) ( ( 1 << (x)) - 1)
 
 typedef enum running_mode : int {
@@ -18,6 +24,7 @@ typedef enum running_mode : int {
     NW_UNIVERSAL = 1, // Run the NW generator using the universal function, this is effectively the original construction from [LP24]; Explicitly computable
     NW_RS = 2, // Run the NW generator using the truth table obtained by applying Reed-Solomon and then Hadamard on the truth table of the universal function; Not explicitly computable
     NW_LOCAL_ENC = 3, //Run the NW generator using the truth table obtained by applying local encoding (see documentation for 'locally_encode_explicit_calc'); Explicitly computable
+    ENCRYPT_STREAM = 4
 } running_mode;
 
 typedef struct Bit {
@@ -25,28 +32,30 @@ typedef struct Bit {
 
     Bit(int _val) : val(_val & 1) {};
     Bit() : val(0) {};
+
+    operator int() const { return val & 1; }
 } bit;
 
 /* -------------------- configuration -------------------- */
 
-const int NUM_TAPES = 3; // number of tapes used by TM
+const int NUM_TAPES = 2; // number of tapes used by TM
 const int N = (1 << 5); // number of states
-const int T = 100; // for how many steps to emulate the TM
-constexpr long long l = 23*6; // size of the design sets, bit length of each NW input
+const int T = 150; // for how many steps to emulate the TM
+constexpr long long l = 12; // size of the design sets, bit length of each NW input
 const int PAD_LENGTH = 0; // How much random padding is used per tape
 const int INP_LENGTH = 15; // Input length taken for each tape
 extern int TM[N][1 << NUM_TAPES]; // the TM itself
 extern int random_pad[NUM_TAPES][PAD_LENGTH]; // the random pading
 
-const int log_RS_q = 8; // q: RS field size - TODO: calculate optimal
+const int log_RS_q = 7; // q: RS field size - TODO: calculate optimal
 constexpr int RS_q = 1 << log_RS_q;
 constexpr int RS_d = 32; // RS distance
-constexpr int w = 6; // local encoding vector length
+constexpr int LOCAL_ENC_k = 2; // input size for every TM emulation when using local encoding, k+1 should divide l
 
 /*
 
 Notes about the parameters :
-- Random bits used for TM: N*NUM_TAPES*log(N) + PAD_LENGTH*NUM_TAPES
+- Random bits used for TM: N*(2^NUM_TAPES)*(log(N) + 2NUM_TAPES) + PAD_LENGTH*NUM_TAPES
 - Random bits used for NW: ~l^2, l times smallest power of two ge to l.
 
 - If RS is used, l should be rather small, as the entire TM tt is generated.
@@ -174,35 +183,17 @@ std::vector<bit> apply_hadamard(std::vector<bit> tt);
 */
 std::vector<bit> apply_RS(std::vector<bit> msg);
 
+/* ------------------ util ------------------ */
 
 /* returns the field GF(2^field_descriptor) */
-inline schifra::galois::field* getGFOverF2(unsigned field_descriptor) {
-    #define OPEN_CASE(index, inp, X) case index: X(inp) break;
-    #define ALL_POSS_DESC(X) \
-    switch(field_descriptor - 2){ \
-        OPEN_CASE(0, 0##0, X) \
-        OPEN_CASE(1, 0##1, X) \
-        OPEN_CASE(2, 0##2, X) \
-        OPEN_CASE(3, 0##3, X) \
-        OPEN_CASE(4, 0##4, X) \
-        OPEN_CASE(5, 0##5, X) \
-        OPEN_CASE(6, 0##6, X) \
-        OPEN_CASE(7, 0##7, X) \
-        OPEN_CASE(8, 0##8, X) \
-        OPEN_CASE(9, 0##9, X) \
-        OPEN_CASE(10, 10, X) \
-        OPEN_CASE(11, 11, X) \
-        OPEN_CASE(12, 12, X) \
-        OPEN_CASE(14, 14, X) \
-    }
+schifra::galois::field* getGFOverF2(unsigned field_descriptor);
 
-    #define GEN_FINITE_FIELD(desc) field = new schifra::galois::field(field_descriptor, schifra::galois::primitive_polynomial_size##desc, schifra::galois::primitive_polynomial##desc);
+void setSeed(const std::vector<bit>& stream);
 
-    schifra::galois::field *field;
+bit randBit();
 
-    ALL_POSS_DESC(GEN_FINITE_FIELD)
+int randIntMod(int mod);
 
-    return field;
-}
+void printRandomUsageStats();
 
 #endif

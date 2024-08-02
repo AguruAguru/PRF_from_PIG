@@ -93,8 +93,8 @@ std::vector<bit> apply_hadamard(std::vector<bit> tt) {
     with the next w bits of 'inp' (r)
 */
 bit locally_encode_explicit_calc(uint64_t inp) {
-    static constexpr int w = 6;
-    static constexpr int k = (l/w) - 1; // w*k + w = design's l
+    const int k = LOCAL_ENC_k;
+    const int w = l/(k+1); // w*k + w = design's l
 
     uint64_t r = (inp >> (w*k)) & BIT_PREFIX_MASK(w);
     int inner_prod = 0;
