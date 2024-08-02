@@ -89,6 +89,30 @@ std::vector<bit> streamCipher() {
     return result;
 }
 
+std::vector<bit> cyclicApplication() {
+    static const int seedLen = 1344;
+
+    std::vector<bit> result = {};
+
+    char curr;
+
+    int bucket = 100;
+
+    for (int i = 0; i < 100*bucket; ++i) {
+        if (!(i%bucket))
+            std::cout << (int)i/bucket << "%" << std::endl;
+
+        auto PRG_tt = runNW(running_mode::NW_RS, seedLen, false);
+
+        setSeed(std::vector<bit>(PRG_tt.begin(), PRG_tt.end()));
+
+        random_TM(TM);
+        // gen_random_pad(random_pad);
+    }
+
+    return runNW(running_mode::NW_RS, seedLen, false);;
+}
+
 int main(int argc, char *argv[]) {
     std::ofstream out;
     if (argc > 3)
@@ -135,6 +159,7 @@ int main(int argc, char *argv[]) {
             outputs = streamCipher();
             outLen = outputs.size();
             break;
+        default: outputs = cyclicApplication(); outLen = outputs.size();
     }
 
     float ones = 0;
